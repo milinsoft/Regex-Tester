@@ -9,6 +9,9 @@ class RegexToolTestRunner(RegexToolTest):
         # task 2
         RegexToolTest.check_home_page_greeting,
         RegexToolTest.check_home_page_layout,
+        # task 3
+        RegexToolTest.check_create_regex_test,
+        RegexToolTest.check_write_to_database,
 
     ]
 

@@ -1,6 +1,8 @@
-from flask import Flask, render_template, url_for
+from flask import Flask, render_template, request, url_for, Response
 from flask_sqlalchemy import SQLAlchemy
 import sys
+
+import re
 
 DB_NAME = 'db.sqlite3'
 app = Flask(__name__)
@@ -23,13 +25,25 @@ class RegexModel(db.Model):
 
 db.create_all()
 
-@app.route('/', methods = ['GET', 'POST'])
+
+@app.route('/', methods=['GET', 'POST'])
 def main_page():
-    return render_template('index.html')
+    if request.method == 'POST':
+        # add info to db without redirection
+        regex, text = request.form.get('regex'), request.form.get('text')  # using .get method allows to handle keyerror.
+        regex_result = bool(re.match(regex, text))
+        regex_enty = RegexModel(regex=regex, text=text, result=regex_result)
+        db.session.add(regex_enty)
+        db.session.commit()
+        return str(regex_result)
+    else:
+        return render_template('index.html')
+
 
 @app.route('/history/')
 def history():
-    pass
+    all_info = RegexModel.query.all()
+    return render_template('history.html', data=all_info)
 
 
 # don't change the following way to run flask:

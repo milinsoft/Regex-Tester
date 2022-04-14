@@ -270,6 +270,47 @@ files:
 - name: test/__init__.py
   visible: false
   learner_created: false
+- name: templates/history.html
+  visible: true
+  text: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Title</title>
+    </head>
+    <body>
+
+
+    </body>
+    </html>
+  learner_created: true
+- name: templates/index.html
+  visible: true
+  text: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Homepage</title>
+    </head>
+    <body>
+        <h2> Welcome to regex testing tool! </h2>
+        <form>
+            <input name="regex", placeholder="Enter your regex template">
+            <input name="text", placeholder="Enter your text">
+            <button type="submit">Submit</button>
+        </form>
+        <br>
+        <a target="_blank" href="/history/"> History </a>
+
+
+    </body>
+    </html>
+  learner_created: true
 feedback_link: https://hyperskill.org/projects/247/stages/1242/implement#comment
-status: Unchecked
+status: Solved
+feedback:
+  message: Congratulations!
+  time: Thu, 14 Apr 2022 23:47:07 UTC
 record: -1
