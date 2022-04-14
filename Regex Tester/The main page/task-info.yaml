@@ -267,6 +267,15 @@ files:
 - name: test/__init__.py
   visible: false
   learner_created: false
+- name: templates/index.html
+  visible: true
+  learner_created: true
+- name: templates/history.html
+  visible: true
+  learner_created: true
 feedback_link: https://hyperskill.org/projects/247/stages/1241/implement#comment
-status: Unchecked
+status: Solved
+feedback:
+  message: Congratulations!
+  time: Thu, 14 Apr 2022 23:13:40 UTC
 record: -1

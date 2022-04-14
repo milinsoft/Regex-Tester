@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template, url_for
 from flask_sqlalchemy import SQLAlchemy
 import sys
 
@@ -23,11 +23,19 @@ class RegexModel(db.Model):
 
 db.create_all()
 
+@app.route('/', methods = ['GET', 'POST'])
+def main_page():
+    return render_template('index.html')
+
+@app.route('/history/')
+def history():
+    pass
+
 
 # don't change the following way to run flask:
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         arg_host, arg_port = sys.argv[1].split(':')
-        app.run(host=arg_host, port=arg_port)
+        app.run(host=arg_host, port=arg_port, debug=True)
     else:
-        app.run()
+        app.run(debug=True)
