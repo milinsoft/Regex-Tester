@@ -273,7 +273,7 @@ files:
 - name: templates/history.html
   visible: true
   learner_created: true
-feedback_link: https://hyperskill.org/projects/247/stages/1241/implement#comment
+feedback_link: https://hyperskill.org/learn/step/19092#comment
 status: Solved
 feedback:
   message: Congratulations!

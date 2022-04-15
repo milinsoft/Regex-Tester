@@ -267,7 +267,7 @@ files:
 - name: db.sqlite3
   visible: true
   learner_created: true
-feedback_link: https://hyperskill.org/projects/247/stages/1240/implement#comment
+feedback_link: https://hyperskill.org/learn/step/19091#comment
 status: Solved
 feedback:
   message: Congratulations!

@@ -53,227 +53,186 @@ files:
   learner_created: false
 - name: test/base.py
   visible: false
-  text: |
-    import http.cookiejar
-    import re
-    import sqlite3
-    import urllib
-    import urllib.error
-    import urllib.parse
-    import urllib.request
-
-    from bs4 import BeautifulSoup
-    import requests
-
-    from hstest import CheckResult, FlaskTest
-
-    INITIAL_RECORDS = [
-        ('[a-zA-Z]+_66!', 'Thrawn_66!', True),
-        ('^.*$', '34534o', False),
-        ('HELLO WORLD', 'HELLO WORLD', True),
-        ('(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)', 'some text', False),
-        ('(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)', 'example@gmail.com', True),
-    ]
-
-
-    class RegexToolTest(FlaskTest):
-        source = 'app'
-        use_database = True
-        cookie_jar = http.cookiejar.CookieJar()
-        CSRF_PATTERN = r'<input[^>]+name="csrfmiddlewaretoken" ' \
-                       r'value="(?P<csrf>\w+)"[^>]*>'
-        input_pattern = '''<input[^>]+name=['"][a-zA-Z\d/_]+['"][^>]*>'''
-        link_pattern = '''<a[^>]+href=['"][a-zA-Z\d/_]+['"][^>]*>(.+?)</a>'''
-
-        testing_regex = [('[0-9]?[0-9]:[0-9][0-9]', '17:50', True),
-                         ('\d{5}-\d{4}|\d{5}', 'zipcode', False)]
-
-
-        def check_create_record(self) -> CheckResult:
-
-            connection = sqlite3.connect("db.sqlite3")
-            cursor = connection.cursor()
-            try:
-                cursor.executemany(
-                    "INSERT INTO record "
-                    " ('regex', 'text', 'result')"
-                    " VALUES (?, ?, ?)",
-                    INITIAL_RECORDS
-                )
-                connection.commit()
-                cursor.execute("SELECT regex, text, result FROM record")
-                result = cursor.fetchall()
-                for item in INITIAL_RECORDS:
-                    if item not in result:
-                        return CheckResult.wrong(('Check your Record model: '
-                                                  '"regex" and "text" should be of the string type, '
-                                                  '"result" should be of the "bool" type'))
-                return CheckResult.correct()
-            except sqlite3.DatabaseError as error:
-                return CheckResult.wrong(str(error))
-
-        def check_home_page_greeting(self) -> CheckResult:
-            try:
-                main_page = self.get(self.get_url())
-                soup = BeautifulSoup(main_page, 'html.parser')
-                try:
-                    h2_content = soup.find('h2').text.lower()
-                except AttributeError:
-                    return CheckResult.wrong('Tag h2 is to be used')
-                if 'welcome to regex testing tool' not in h2_content:
-                    return CheckResult.wrong(
-                        'Main page should contain "Welcome to regex testing tool!" line'
-                    )
-                try:
-                    inputs = soup.find_all('input')
-                    if len(inputs) != 4:
-                        button = soup.find('button')
-                        if button is not None:
-                            inputs.append(button)
-                    if inputs[0].attrs['name'] != 'regex':
-                        return CheckResult.wrong('The first field should have name "regex"')
-                    if inputs[1].attrs['name'] != 'text':
-                        return CheckResult.wrong('The second field should have name "text"')
-                    buttons = soup.find_all('button')
-                    if buttons[0].attrs['type'] != 'submit':
-                        return CheckResult.wrong(('Make sure there is a button wih the type '
-                                                  '"submit" on your page'))
-                except IndexError:
-                    return CheckResult.wrong('The form lacks some of the fields')
-                try:
-                    a_href = soup.find('a').attrs['href']
-                except AttributeError:
-                    return CheckResult.wrong('The link to the history page is missing')
-                href = '/history/'
-                if a_href != href:
-                    return CheckResult.wrong(f'The "href" attribute is to be equal to {href}')
-                return CheckResult.correct()
-            except urllib.error.URLError:
-                return CheckResult.wrong(
-                    'Cannot connect to the menu page.'
-                )
-
-
-
-        def check_home_page_layout(self) -> CheckResult:
-            number_of_input_tags = 2
-            main_page = self.get(self.get_url())
-
-            input_tags = re.findall(self.input_pattern, main_page)
-
-            if len(input_tags) < number_of_input_tags:
-                return CheckResult.wrong("Missing input tags or name attribute")
-
-            link_tag = re.findall(self.link_pattern, main_page)
-            if not link_tag:
-                return CheckResult.wrong("Main page should contain link to history page")
-
-            return CheckResult.correct()
-
-        def check_create_regex_test(self) -> CheckResult:
-
-            URL = self.get_url()
-            client = requests.session()
-            client.get(URL)
-            try:
-                for regex in self.testing_regex:
-                    regex_data = dict(regex=regex[0], text=regex[1])
-                    response = client.post(URL, data=regex_data, headers=dict(Referer=URL))
-                    if not response.ok:
-                        return CheckResult.wrong("Bad response.")
-                    if str(regex[2]) not in response.text:
-                        return CheckResult.wrong((f"Match result is wrong. "
-                                                  f"For regex {regex[0]} and text {regex[1]} "
-                                                  f"should be {regex[2]}"))
-            except urllib.error.URLError as err:
-                return CheckResult.wrong(f'Cannot create test: {err.reason}. Check the form method.')
-            return CheckResult.correct()
-
-        def check_write_to_database(self) -> CheckResult:
-            connection = sqlite3.connect("db.sqlite3")
-            cursor = connection.cursor()
-            try:
-                cursor.execute("SELECT regex, text, result FROM record")
-                result = cursor.fetchall()
-
-                for item in self.testing_regex:
-                    if item not in result:
-                        return CheckResult.wrong('New tests are not in database')
-                return CheckResult.correct()
-            except sqlite3.DatabaseError as error:
-                return CheckResult.wrong(str(error))
-
-        def check_redirect_result_page(self) -> CheckResult:
-            connection = sqlite3.connect("db.sqlite3")
-            cursor = connection.cursor()
-            cursor.execute("DELETE FROM record")
-            connection.commit()
-            URL = self.get_url()
-            client = requests.session()
-            client.get(URL)
-            regex_data = dict(regex='\d?\d/\d?\d/\d\d\d\d', text='12/25/2009')
-            response = client.post(URL, data=regex_data, headers=dict(Referer=URL))
-            cursor.execute("SELECT id FROM record ORDER BY id DESC LIMIT 1")
-            result = cursor.fetchone()[0]
-            expected_url = self.get_url(f"result/{result}/")
-            if expected_url != response.url:
-                return CheckResult.wrong(("Request was not redirected correctly, "
-                                          "it should have been redirected to the result page"))
-            return CheckResult.correct()
-
-        def check_result_page(self) -> CheckResult:
-            connection = sqlite3.connect("db.sqlite3")
-            cursor = connection.cursor()
-            cursor.execute("SELECT * FROM record")
-            records = cursor.fetchall()
-            index = 0
-            for record in records:
-                if index >= 5:
-                    break
-                text = f"Text: {record[2]}"
-                regex = f"Regex: {record[1]}"
-                result = f"{bool(record[3])}"
-                result_page = self.get(self.get_url(f"result/{record[0]}/"))
-                if regex not in result_page:
-                    return CheckResult.wrong("Regex should be in the page")
-                if text not in result_page:
-                    return CheckResult.wrong("Testing string should appear in the page")
-                if result not in result_page:
-                    return CheckResult.wrong("Result of testing also must be in the page")
-                index += 1
-            return CheckResult.correct()
-
-        def check_result_links(self) -> CheckResult:
-            history_page_url = self.get_url('history/')
-            history_page = self.get(history_page_url)
-            soup = BeautifulSoup(history_page, features="html.parser")
-            names = ['[a-zA-Z]+_66!', '^.*$', 'HELLO WORLD',
-                     '(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$)',
-                     '(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$)',
-                     '[0-9]?[0-9]:[0-9][0-9]', '\\d{5}-\\d{4}|\\d{5}',
-                     '\\d?\\d/\\d?\\d/\\d\\d\\d\\d']
-            connection = sqlite3.connect('db.sqlite3')
-            cursor = connection.cursor()
-            cursor.execute("SELECT id FROM record ORDER BY id DESC ")
-
-            result = cursor.fetchall()
-            all_a = soup.findAll('a')
-            if len(all_a) != len(result):
-                return CheckResult.wrong("Wrong number of links on history page")
-            for link in all_a:
-                try:
-                    self.get(self.get_url(link.get('href')))
-                except urllib.error.URLError:
-                    return CheckResult.wrong(
-                        f"Cannot connect to the {link.get('href')} page."
-                    )
-                if link.text not in names:
-                    return CheckResult.wrong(f'The link {link.attrs["href"]} has a wrong name')
-            return CheckResult.correct()
+  text: "import http.cookiejar\nimport re\nimport sqlite3\nimport urllib\nimport urllib.error\n\
+    import urllib.parse\nimport urllib.request\n\nfrom bs4 import BeautifulSoup\n\
+    import requests\n\nfrom hstest import CheckResult, FlaskTest\n\nINITIAL_RECORDS\
+    \ = [\n    ('[a-zA-Z]+_66!', 'Thrawn_66!', True),\n    ('^.*$', '34534o', False),\n\
+    \    ('HELLO WORLD', 'HELLO WORLD', True),\n    ('(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\\
+    .[a-zA-Z0-9-.]+$)', 'some text', False),\n    ('(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\\
+    .[a-zA-Z0-9-.]+$)', 'example@gmail.com', True),\n]\n\n\nclass RegexToolTest(FlaskTest):\n\
+    \    source = 'app'\n    use_database = True\n    cookie_jar = http.cookiejar.CookieJar()\n\
+    \    CSRF_PATTERN = r'<input[^>]+name=\"csrfmiddlewaretoken\" ' \\\n         \
+    \          r'value=\"(?P<csrf>\\w+)\"[^>]*>'\n    input_pattern = '''<input[^>]+name=['\"\
+    ][a-zA-Z\\d/_]+['\"][^>]*>'''\n    link_pattern = '''<a[^>]+href=['\"][a-zA-Z\\\
+    d/_]+['\"][^>]*>(.+?)</a>'''\n\n    testing_regex = [('[0-9]?[0-9]:[0-9][0-9]',\
+    \ '17:50', True),\n                     ('\\d{5}-\\d{4}|\\d{5}', 'zipcode', False)]\n\
+    \n\n    def check_create_record(self) -> CheckResult:\n\n        connection =\
+    \ sqlite3.connect(\"db.sqlite3\")\n        cursor = connection.cursor()\n    \
+    \    try:\n            cursor.executemany(\n                \"INSERT INTO record\
+    \ \"\n                \" ('regex', 'text', 'result')\"\n                \" VALUES\
+    \ (?, ?, ?)\",\n                INITIAL_RECORDS\n            )\n            connection.commit()\n\
+    \            cursor.execute(\"SELECT regex, text, result FROM record\")\n    \
+    \        result = cursor.fetchall()\n            for item in INITIAL_RECORDS:\n\
+    \                if item not in result:\n                    return CheckResult.wrong(('Check\
+    \ your Record model: '\n                                              '\"regex\"\
+    \ and \"text\" should be of the string type, '\n                             \
+    \                 '\"result\" should be of the \"bool\" type'))\n            return\
+    \ CheckResult.correct()\n        except sqlite3.DatabaseError as error:\n    \
+    \        return CheckResult.wrong(str(error))\n\n    def check_home_page_greeting(self)\
+    \ -> CheckResult:\n        try:\n            main_page = self.get(self.get_url())\n\
+    \            soup = BeautifulSoup(main_page, 'html.parser')\n            try:\n\
+    \                h2_content = soup.find('h2').text.lower()\n            except\
+    \ AttributeError:\n                return CheckResult.wrong('Tag h2 is to be used')\n\
+    \            if 'welcome to regex testing tool' not in h2_content:\n         \
+    \       return CheckResult.wrong(\n                    'Main page should contain\
+    \ \"Welcome to regex testing tool!\" line'\n                )\n            try:\n\
+    \                inputs = soup.find_all('input')\n                if len(inputs)\
+    \ != 4:\n                    button = soup.find('button')\n                  \
+    \  if button is not None:\n                        inputs.append(button)\n   \
+    \             if inputs[0].attrs['name'] != 'regex':\n                    return\
+    \ CheckResult.wrong('The first field should have name \"regex\"')\n          \
+    \      if inputs[1].attrs['name'] != 'text':\n                    return CheckResult.wrong('The\
+    \ second field should have name \"text\"')\n                buttons = soup.find_all('button')\n\
+    \                if buttons[0].attrs['type'] != 'submit':\n                  \
+    \  return CheckResult.wrong(('Make sure there is a button wih the type '\n   \
+    \                                           '\"submit\" on your page'))\n    \
+    \        except IndexError:\n                return CheckResult.wrong('The form\
+    \ lacks some of the fields')\n            try:\n                a_href = soup.find('a').attrs['href']\n\
+    \            except AttributeError:\n                return CheckResult.wrong('The\
+    \ link to the history page is missing')\n            href = '/history/'\n    \
+    \        if a_href != href:\n                return CheckResult.wrong(f'The \"\
+    href\" attribute is to be equal to {href}')\n            return CheckResult.correct()\n\
+    \        except urllib.error.URLError:\n            return CheckResult.wrong(\n\
+    \                'Cannot connect to the menu page.'\n            )\n\n\n\n   \
+    \ def check_home_page_layout(self) -> CheckResult:\n        number_of_input_tags\
+    \ = 2\n        main_page = self.get(self.get_url())\n\n        input_tags = re.findall(self.input_pattern,\
+    \ main_page)\n\n        if len(input_tags) < number_of_input_tags:\n         \
+    \   return CheckResult.wrong(\"Missing input tags or name attribute\")\n\n   \
+    \     link_tag = re.findall(self.link_pattern, main_page)\n        if not link_tag:\n\
+    \            return CheckResult.wrong(\"Main page should contain link to history\
+    \ page\")\n\n        return CheckResult.correct()\n\n    def check_create_regex_test(self)\
+    \ -> CheckResult:\n\n        URL = self.get_url()\n        client = requests.session()\n\
+    \        client.get(URL)\n        try:\n            for regex in self.testing_regex:\n\
+    \                regex_data = dict(regex=regex[0], text=regex[1])\n          \
+    \      response = client.post(URL, data=regex_data, headers=dict(Referer=URL))\n\
+    \                if not response.ok:\n                    return CheckResult.wrong(\"\
+    Bad response.\")\n                if str(regex[2]) not in response.text:\n   \
+    \                 return CheckResult.wrong((f\"Match result is wrong. \"\n   \
+    \                                           f\"For regex {regex[0]} and text {regex[1]}\
+    \ \"\n                                              f\"should be {regex[2]}\"\
+    ))\n        except urllib.error.URLError as err:\n            return CheckResult.wrong(f'Cannot\
+    \ create test: {err.reason}. Check the form method.')\n        return CheckResult.correct()\n\
+    \n    def check_write_to_database(self) -> CheckResult:\n        connection =\
+    \ sqlite3.connect(\"db.sqlite3\")\n        cursor = connection.cursor()\n    \
+    \    try:\n            cursor.execute(\"SELECT regex, text, result FROM record\"\
+    )\n            result = cursor.fetchall()\n\n            for item in self.testing_regex:\n\
+    \                if item not in result:\n                    return CheckResult.wrong('New\
+    \ tests are not in database')\n            return CheckResult.correct()\n    \
+    \    except sqlite3.DatabaseError as error:\n            return CheckResult.wrong(str(error))\n\
+    \n    def check_redirect_result_page(self) -> CheckResult:\n        connection\
+    \ = sqlite3.connect(\"db.sqlite3\")\n        cursor = connection.cursor()\n  \
+    \      cursor.execute(\"DELETE FROM record\")\n        connection.commit()\n \
+    \       URL = self.get_url()\n        client = requests.session()\n        client.get(URL)\n\
+    \        regex_data = dict(regex='\\d?\\d/\\d?\\d/\\d\\d\\d\\d', text='12/25/2009')\n\
+    \        response = client.post(URL, data=regex_data, headers=dict(Referer=URL))\n\
+    \        if response.status_code!=200:\n            return CheckResult.wrong(\"\
+    \"\"The attempt to add data was unsuccessful, regex: \\\"{}\\\", text: \\\"{}\\\
+    \"\"\"\".format(regex_data['regex'], regex_data['text']))\n        cursor.execute(\"\
+    SELECT id FROM record ORDER BY id DESC LIMIT 1\")\n        result = cursor.fetchone()\n\
+    \        if len(result)==0:\n            return CheckResult.wrong(\"\"\"Data not\
+    \ added to the database, regex: \\\"{}\\\", text: \\\"{}\\\"\"\"\".format(regex_data['regex'],\
+    \ regex_data['text']))\n        result = result[0]\n        expected_url = self.get_url(f\"\
+    result/{result}/\")\n        if expected_url != response.url:\n            return\
+    \ CheckResult.wrong((\"\"\"Request was not redirected correctly, \n          \
+    \                            it should have been redirected to the result page\"\
+    \"\"))\n        return CheckResult.correct()\n\n    def check_result_page(self)\
+    \ -> CheckResult:\n        connection = sqlite3.connect(\"db.sqlite3\")\n    \
+    \    cursor = connection.cursor()\n        cursor.execute(\"SELECT * FROM record\"\
+    )\n        records = cursor.fetchall()\n        index = 0\n        for record\
+    \ in records:\n            if index >= 5:\n                break\n           \
+    \ text = f\"Text: {record[2]}\"\n            regex = f\"Regex: {record[1]}\"\n\
+    \            result = f\"{bool(record[3])}\"\n            result_page = self.get(self.get_url(f\"\
+    result/{record[0]}/\"))\n            if regex not in result_page:\n          \
+    \      return CheckResult.wrong(\"Regex should be in the page\")\n           \
+    \ if text not in result_page:\n                return CheckResult.wrong(\"Testing\
+    \ string should appear in the page\")\n            if result not in result_page:\n\
+    \                return CheckResult.wrong(\"Result of testing also must be in\
+    \ the page\")\n            index += 1\n        return CheckResult.correct()\n\n\
+    \    def check_result_links(self) -> CheckResult:\n        history_page_url =\
+    \ self.get_url('history/')\n        history_page = self.get(history_page_url)\n\
+    \        soup = BeautifulSoup(history_page, features=\"html.parser\")\n      \
+    \  names = ['[a-zA-Z]+_66!', '^.*$', 'HELLO WORLD',\n                 '(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\\
+    \\.[a-zA-Z0-9-.]+$)',\n                 '(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\\\\
+    .[a-zA-Z0-9-.]+$)',\n                 '[0-9]?[0-9]:[0-9][0-9]', '\\\\d{5}-\\\\\
+    d{4}|\\\\d{5}',\n                 '\\\\d?\\\\d/\\\\d?\\\\d/\\\\d\\\\d\\\\d\\\\\
+    d']\n        connection = sqlite3.connect('db.sqlite3')\n        cursor = connection.cursor()\n\
+    \        cursor.execute(\"SELECT id FROM record ORDER BY id DESC \")\n\n     \
+    \   result = cursor.fetchall()\n        all_a = soup.findAll('a')\n        if\
+    \ len(all_a) != len(result):\n            return CheckResult.wrong(\"Wrong number\
+    \ of links on history page\")\n        for link in all_a:\n            try:\n\
+    \                self.get(self.get_url(link.get('href')))\n            except\
+    \ urllib.error.URLError:\n                return CheckResult.wrong(\n        \
+    \            f\"Cannot connect to the {link.get('href')} page.\"\n           \
+    \     )\n            if link.text not in names:\n                return CheckResult.wrong(f'The\
+    \ link {link.attrs[\"href\"]} has a wrong name')\n        return CheckResult.correct()\n"
   learner_created: false
+- name: templates/history.html
+  visible: true
+  text: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Title</title>
+    </head>
+    <body>
+
+    { % if data %}
+    <div class="results">
+        { % for entry in data % }
+            <p></p>
+
+    </div>
+
+    </body>
+    </html>
+  learner_created: true
+- name: templates/index.html
+  visible: true
+  text: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Homepage</title>
+    </head>
+    <body>
+        <h2> Welcome to regex testing tool! </h2>
+        <form action="/", method="POST">
+            <input name="regex", placeholder="Enter your regex template">
+            <input name="text", placeholder="Enter your text">
+            <button type="submit">Submit</button>
+        </form>
+        <br>
+        <a target="_blank" href="/history/"> History </a>
+
+
+    </body>
+    </html>
+  learner_created: true
+- name: templates/result.html
+  visible: true
+  learner_created: true
+- name: db.sqlite3
+  visible: true
+  learner_created: true
 - name: test/__init__.py
   visible: false
   learner_created: false
-feedback_link: https://hyperskill.org/projects/247/stages/1243/implement#comment
-status: Unchecked
+feedback_link: https://hyperskill.org/learn/step/19094#comment
+status: Solved
+feedback:
+  message: Well done! You've finished the project. Select a new project on <a href="https://hyperskill.org/projects">JetBrains
+    Academy</a> to continue learning.
+  time: Fri, 15 Apr 2022 20:24:48 UTC
 record: -1

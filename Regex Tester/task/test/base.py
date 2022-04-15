@@ -157,12 +157,17 @@ class RegexToolTest(FlaskTest):
         client.get(URL)
         regex_data = dict(regex='\d?\d/\d?\d/\d\d\d\d', text='12/25/2009')
         response = client.post(URL, data=regex_data, headers=dict(Referer=URL))
+        if response.status_code!=200:
+            return CheckResult.wrong("""The attempt to add data was unsuccessful, regex: \"{}\", text: \"{}\"""".format(regex_data['regex'], regex_data['text']))
         cursor.execute("SELECT id FROM record ORDER BY id DESC LIMIT 1")
-        result = cursor.fetchone()[0]
+        result = cursor.fetchone()
+        if len(result)==0:
+            return CheckResult.wrong("""Data not added to the database, regex: \"{}\", text: \"{}\"""".format(regex_data['regex'], regex_data['text']))
+        result = result[0]
         expected_url = self.get_url(f"result/{result}/")
         if expected_url != response.url:
-            return CheckResult.wrong(("Request was not redirected correctly, "
-                                      "it should have been redirected to the result page"))
+            return CheckResult.wrong(("""Request was not redirected correctly, 
+                                      it should have been redirected to the result page"""))
         return CheckResult.correct()
 
     def check_result_page(self) -> CheckResult:

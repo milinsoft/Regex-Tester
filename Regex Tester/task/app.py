@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, url_for, Response
+from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 import sys
 
@@ -35,15 +35,24 @@ def main_page():
         regex_enty = RegexModel(regex=regex, text=text, result=regex_result)
         db.session.add(regex_enty)
         db.session.commit()
-        return str(regex_result)
+
+        regex_entry = RegexModel.query.filter(RegexModel.regex == regex).first()
+        return redirect(url_for('result', result_id=regex_entry.id))  # {regex_entry.id}
+
     else:
         return render_template('index.html')
 
 
 @app.route('/history/')
 def history():
-    all_info = RegexModel.query.all()
+    all_info = RegexModel.query.order_by(RegexModel.id.desc()).all()
     return render_template('history.html', data=all_info)
+
+
+@app.route('/result/<int:result_id>/')
+def result(result_id):
+    regex_entry = RegexModel.query.filter(RegexModel.id == result_id).first()
+    return render_template('result.html', data=regex_entry)
 
 
 # don't change the following way to run flask:

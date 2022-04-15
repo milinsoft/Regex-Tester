@@ -6,13 +6,15 @@
 </head>
 <body>
 
+
 {% if data %}
-<div class="results">
-    {% for entry in data %}
-    <li><a href="/result/{{ entry.id }}/">{{ entry.regex }}</a></li>
-    {% endfor %}
-</div>
+    <div class="results">
+        <p>Regex: {{ data.regex }}</p>
+        <p>Text: {{ data.text }}</p>
+        <p>{{ data.result }}</p>
+    </div>
 {% endif %}
+
 
 </body>
 </html>
